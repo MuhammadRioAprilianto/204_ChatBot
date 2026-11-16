@@ -53,4 +53,84 @@ app.post("/api/chat", async (req, res) => {
         });
     }
 
-    
+    // Header untuk streaming
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let buffer = "";
+
+    while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+            break;   
+        }
+
+        buffer += decoder.decode(value, { 
+            stream: true 
+        });
+
+        const lines = buffer.split("\n");
+
+        //Simpan bagian terakhir karena mungkin tidak lengkap
+        buffer = lines.pop();
+
+        for (const line of lines) {
+
+            const trimmedLine = line.trim();
+
+            if (trimmedLine.startsWith("data: ")) {
+                continue;
+            }
+
+            const data = trimmedLine.slice(5).trim();
+
+            if (data === "[DONE]") {
+                continue;
+            }
+
+            try {
+
+                const jsonData = JSON.parse(data);
+
+                const content =
+                    jsonData.choices?.[0]?.delta?.content;
+                
+                if (content) {
+                    res.write(`data: $(JSON.stringify({ content }))\n\n`);
+                }
+            } catch (error) {
+                console.error(
+                    "Gagal parsing stream data:"
+                    , error
+                );
+            }
+        }
+    }
+
+    res.write("data: [DONE]\n\n");
+    res.end();
+
+    } catch (error) {
+
+        console.error("Server error:", error);
+
+        if (!res.headersSent) {
+            res.status(500).json({
+                error: "Terjadi kesalahan pada server"
+            });
+        } else {
+            res.write(
+                `data: ${JSON.stringify(
+                    "Terjadi kesalahan pada server" 
+                )}\n\n`
+            );
+
+            res.end();
+        }
+    }
+});
