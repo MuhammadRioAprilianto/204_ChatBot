@@ -34,7 +34,7 @@ app.post("/api/chat", async (req, res) => {
             },
 
             body: JSON.stringify({
-                model: "inclusional/ling-3.2-flash:free",
+                model: "inclusionai/ling-3.2-flash:free",
                 messages: messages,
                 temperature: 0.7,
                 max_tokens: 1000,
@@ -43,4 +43,7 @@ app.post("/api/chat", async (req, res) => {
         }
     );
 
-    
+    if (!response.ok) {
+        const errorData = await response.json();
+        return res.status(response.status).json({ error: errorData });
+    }
